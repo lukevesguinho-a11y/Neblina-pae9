@@ -1,0 +1,267 @@
+local Players = game:GetService("Players")
+local Lighting = game:GetService("Lighting")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- Limpar GUI antiga se existir
+if playerGui:FindFirstChild("FogControlGui") then
+	playerGui.FogControlGui:Destroy()
+end
+
+-- Guardar valores originais do mapa
+local originalFogStart = Lighting.FogStart
+local originalFogEnd = Lighting.FogEnd
+local originalFogColor = Lighting.FogColor
+
+-- ScreenGui Principal
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "FogControlGui"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = playerGui
+
+-- Função auxiliar para arrastar elementos (Substitui Draggable obsoleto)
+local function makeDraggable(frame)
+	local dragging = false
+	local dragInput, dragStart, startPos
+
+	frame.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = input.Position
+			startPos = frame.Position
+
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+				end
+			end)
+		end
+	end)
+
+	frame.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			dragInput = input
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if input == dragInput and dragging then
+			local delta = input.Position - dragStart
+			frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+		end
+	end)
+end
+
+-- Botão Flutuante (Móvel)
+local toggleMenuBtn = Instance.new("TextButton")
+toggleMenuBtn.Name = "ToggleMenuButton"
+toggleMenuBtn.Size = UDim2.new(0, 110, 0, 35)
+toggleMenuBtn.Position = UDim2.new(0, 20, 0.5, -17)
+toggleMenuBtn.BackgroundColor3 = Color3.fromRGB(255, 182, 193)
+toggleMenuBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleMenuBtn.Text = "Fechar Fog"
+toggleMenuBtn.Font = Enum.Font.GothamBold
+toggleMenuBtn.TextSize = 14
+toggleMenuBtn.Active = true
+toggleMenuBtn.Parent = screenGui
+
+makeDraggable(toggleMenuBtn)
+
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(0, 8)
+btnCorner.Parent = toggleMenuBtn
+
+-- Painel Principal
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 260, 0, 320)
+mainFrame.Position = UDim2.new(0.5, -130, 0.5, -160)
+mainFrame.BackgroundColor3 = Color3.fromRGB(255, 240, 245)
+mainFrame.BorderSizePixel = 0
+mainFrame.Visible = true
+mainFrame.Active = true
+mainFrame.Parent = screenGui
+
+makeDraggable(mainFrame)
+
+-- UIScale para controlar a animação de escala sem interferir na posição
+local uiScale = Instance.new("UIScale")
+uiScale.Scale = 1
+uiScale.Parent = mainFrame
+
+local frameCorner = Instance.new("UICorner")
+frameCorner.CornerRadius = UDim.new(0, 12)
+frameCorner.Parent = mainFrame
+
+local frameStroke = Instance.new("UIStroke")
+frameStroke.Color = Color3.fromRGB(255, 105, 180)
+frameStroke.Thickness = 2
+frameStroke.Parent = mainFrame
+
+-- Título
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, -40, 0, 40)
+titleLabel.Position = UDim2.new(0, 10, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "Painel de Neblina (Fog)"
+titleLabel.TextColor3 = Color3.fromRGB(255, 105, 180)
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextSize = 15
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.Parent = mainFrame
+
+-- Botão Fechar (X)
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 30, 0, 30)
+closeBtn.Position = UDim2.new(1, -35, 0, 5)
+closeBtn.BackgroundColor3 = Color3.fromRGB(255, 182, 193)
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.Text = "X"
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 14
+closeBtn.Parent = mainFrame
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 6)
+closeCorner.Parent = closeBtn
+
+-- Botão Ativar/Desativar Fog
+local fogToggleBtn = Instance.new("TextButton")
+fogToggleBtn.Size = UDim2.new(1, -20, 0, 35)
+fogToggleBtn.Position = UDim2.new(0, 10, 0, 45)
+fogToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+fogToggleBtn.TextColor3 = Color3.fromRGB(255, 105, 180)
+fogToggleBtn.Text = "Ativar Neblina: OFF"
+fogToggleBtn.Font = Enum.Font.GothamBold
+fogToggleBtn.TextSize = 14
+fogToggleBtn.Parent = mainFrame
+
+local fogToggleCorner = Instance.new("UICorner")
+fogToggleCorner.CornerRadius = UDim.new(0, 8)
+fogToggleCorner.Parent = fogToggleBtn
+
+-- Container de Cores
+local colorFrame = Instance.new("Frame")
+colorFrame.Size = UDim2.new(1, -20, 0, 190)
+colorFrame.Position = UDim2.new(0, 10, 0, 100)
+colorFrame.BackgroundTransparency = 1
+colorFrame.Parent = mainFrame
+
+local uiGrid = Instance.new("UIGridLayout")
+uiGrid.CellSize = UDim2.new(0, 110, 0, 35)
+uiGrid.CellPadding = UDim2.new(0, 10, 0, 10)
+uiGrid.Parent = colorFrame
+
+local colors = {
+	{Name = "Rosa", Color = Color3.fromRGB(255, 105, 180)},
+	{Name = "Azul", Color = Color3.fromRGB(30, 144, 255)},
+	{Name = "Amarelo", Color = Color3.fromRGB(255, 215, 0)},
+	{Name = "Vermelho", Color = Color3.fromRGB(255, 69, 0)},
+	{Name = "Laranja", Color = Color3.fromRGB(255, 140, 0)},
+	{Name = "Verde", Color = Color3.fromRGB(50, 205, 50)},
+	{Name = "Branco", Color = Color3.fromRGB(255, 255, 255)}
+}
+
+local selectedColor = Color3.fromRGB(255, 105, 180)
+local fogActive = false
+
+for _, item in ipairs(colors) do
+	local cBtn = Instance.new("TextButton")
+	cBtn.BackgroundColor3 = item.Color
+	cBtn.Text = item.Name
+	cBtn.Font = Enum.Font.GothamMedium
+	cBtn.TextSize = 13
+	cBtn.TextColor3 = (item.Name == "Branco" or item.Name == "Amarelo") and Color3.fromRGB(50, 50, 50) or Color3.fromRGB(255, 255, 255)
+
+	local cCorner = Instance.new("UICorner")
+	cCorner.CornerRadius = UDim.new(0, 6)
+	cCorner.Parent = cBtn
+
+	cBtn.MouseButton1Click:Connect(function()
+		selectedColor = item.Color
+		if fogActive then
+			Lighting.FogColor = selectedColor
+		end
+	end)
+	cBtn.Parent = colorFrame
+end
+
+-- Lógica de Ativar/Desativar Neblina
+fogToggleBtn.MouseButton1Click:Connect(function()
+	fogActive = not fogActive
+	if fogActive then
+		fogToggleBtn.Text = "Ativar Neblina: ON"
+		fogToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 182, 193)
+		fogToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+		Lighting.FogStart = 20
+		Lighting.FogEnd = 300
+		Lighting.FogColor = selectedColor
+	else
+		fogToggleBtn.Text = "Ativar Neblina: OFF"
+		fogToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		fogToggleBtn.TextColor3 = Color3.fromRGB(255, 105, 180)
+
+		Lighting.FogStart = originalFogStart
+		Lighting.FogEnd = originalFogEnd
+		Lighting.FogColor = originalFogColor
+	end
+end)
+
+-- Sistema de Animação de Entrada e Saída
+local isMenuOpen = true
+local isAnimating = false
+
+local function openMenu()
+	if isAnimating or isMenuOpen then return end
+	isAnimating = true
+	isMenuOpen = true
+
+	mainFrame.Visible = true
+	toggleMenuBtn.Text = "Fechar Fog"
+	uiScale.Scale = 0
+
+	local tween = TweenService:Create(
+		uiScale,
+		TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+		{Scale = 1}
+	)
+	tween:Play()
+	tween.Completed:Connect(function()
+		isAnimating = false
+	end)
+end
+
+local function closeMenu()
+	if isAnimating or not isMenuOpen then return end
+	isAnimating = true
+	isMenuOpen = false
+
+	toggleMenuBtn.Text = "Abrir Fog"
+
+	local tween = TweenService:Create(
+		uiScale,
+		TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+		{Scale = 0}
+	)
+	tween:Play()
+	tween.Completed:Connect(function()
+		if not isMenuOpen then
+			mainFrame.Visible = false
+		end
+		isAnimating = false
+	end)
+end
+
+toggleMenuBtn.MouseButton1Click:Connect(function()
+	if isMenuOpen then
+		closeMenu()
+	else
+		openMenu()
+	end
+end)
+
+closeBtn.MouseButton1Click:Connect(closeMenu)
